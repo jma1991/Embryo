@@ -1,0 +1,180 @@
+---
+title: "Integration"
+author: "James Ashmore"
+date: "2019-08-23"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+## Motivation
+
+## Setup
+
+Set chunk options:
+
+```{r knitr}
+knitr::opts_chunk$set(
+  autodep    = TRUE,
+  cache      = TRUE,
+  cache.path = "cache/integration",
+  dev        = "png",
+  error      = FALSE,
+  message    = FALSE,
+  warning    = FALSE
+)
+```
+
+Load required packages:
+
+```{r pacman}
+pacman::p_load(
+  devtools,
+  here,
+  limma,
+  patchwork,
+  readr,
+  scater,
+  scran
+)
+```
+
+Read experiment data:
+
+```{r readr}
+sce <- read_rds(here("data/normalization.Rds"))
+```
+
+## Diagnosis
+
+### Explanatory variables
+
+Plot explanatory variables ordered by percentage of variance explained:
+
+```{r}
+var <- colData(sce)[, c("sample", "tissue", "genotype", "phase")]
+
+plotExplanatoryVariables(sce, nvars_to_plot = 10, variables = var)
+```
+
+### Dimensionality reduction {.tabset}
+
+Inspect dimensionality reduction plots coloured by explanatory variables:
+
+```{r}
+row <- rowData(sce)$selected
+
+var <- c("sample", "tissue", "genotype", "phase")
+```
+
+#### PCA
+
+```{r}
+set.seed(1701)
+
+reducedDim(sce, "PCA") <- calculatePCA(sce, exprs_values = "logcounts")
+
+plt <- lapply(var, function(x) plotPCA(sce, colour_by = x))
+
+wrap_plots(plt, ncol = 2)
+```
+
+#### TSNE
+
+```{r}
+set.seed(1701)
+
+reducedDim(sce, "TSNE") <- calculateTSNE(sce, dimred = "PCA")
+
+plt <- lapply(var, function(x) plotTSNE(sce, colour_by = x))
+
+wrap_plots(plt, ncol = 2)
+```
+
+#### UMAP
+
+```{r}
+set.seed(1701)
+
+reducedDim(sce, "UMAP") <- calculateUMAP(sce, dimred = "PCA")
+
+plt <- lapply(var, function(x) plotUMAP(sce, colour_by = x))
+
+wrap_plots(plt, ncol = 2)
+```
+
+## Correction
+
+```{r, eval = FALSE}
+set.seed(1701)
+
+mod <- model.matrix(~ G1 + G2M, sce@colData)
+
+assay(sce, "corrected") <- removeBatchEffect(logcounts(sce), covariates = mod[, -1])
+```
+
+## Validation
+
+### Dimensionality reduction {.tabset}
+
+Inspect dimensionality reduction plots coloured by explanatory variables:
+
+```{r, eval = FALSE}
+row <- rowData(sce)$selected
+
+var <- c("sample", "tissue", "genotype", "phase")
+```
+
+#### PCA
+
+```{r, eval = FALSE}
+set.seed(1701)
+
+reducedDim(sce, "PCA") <- calculatePCA(sce, exprs_values = "corrected")
+
+plt <- lapply(var, function(x) plotPCA(sce, colour_by = x))
+
+wrap_plots(plt, ncol = 2)
+```
+
+#### TSNE
+
+```{r, eval = FALSE}
+set.seed(1701)
+
+reducedDim(sce, "TSNE") <- calculateTSNE(sce, dimred = "PCA")
+
+plt <- lapply(var, function(x) plotTSNE(sce, colour_by = x))
+
+wrap_plots(plt, ncol = 2)
+```
+
+#### UMAP
+
+```{r, eval = FALSE}
+set.seed(1701)
+
+reducedDim(sce, "UMAP") <- calculateUMAP(sce, dimred = "PCA")
+
+plt <- lapply(var, function(x) plotUMAP(sce, colour_by = x))
+
+wrap_plots(plt, ncol = 2)
+```
+
+## Summary
+
+### Output files
+
+Write experiment data:
+
+```{r}
+write_rds(sce, here("data/integration.Rds"))
+```
+
+### Session information
+
+Print version information:
+
+```{r}
+session_info()
+```

@@ -1,0 +1,150 @@
+---
+title: "Doublet detection"
+author: "James Ashmore"
+date: "2019-10-07"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+## Motivation
+
+In this analysis we are going to identify and remove doublet libraries so that they do not compromise interpretation of the results.
+
+## Setup
+
+Set chunk options:
+
+```{r knitr}
+knitr::opts_chunk$set(
+  autodep    = TRUE,
+  cache      = TRUE,
+  cache.path = "cache/doublet",
+  dev        = "png",
+  error      = FALSE,
+  message    = FALSE,
+  warning    = FALSE
+)
+```
+
+Load required packages:
+
+```{r}
+pacman::p_load(
+  devtools,
+  here,
+  readr,
+  scater,
+  scran
+)
+```
+
+Read experiment data:
+
+```{r}
+sce <- read_rds(here("data/clustering.Rds"))
+```
+
+## By clusters {.tabset}
+
+Identify potential clusters of doublet cells based on intermediate expression profiles:
+
+```{r}
+dbl <- doubletCluster(sce, sce$cluster)
+```
+
+Inspect output from doublet detection:
+
+```{r}
+print(dbl)
+```
+
+Find putative marker genes:
+
+```{r}
+res <- findMarkers(sce, sce$cluster, direction = "up")
+
+sig <- lapply(res, subset, FDR < 0.1)
+
+sig <- Filter(nrow, sig)
+```
+
+Plot a heatmap of expression values for cells in the query cluster and the two source clusters:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- subset(dat, Top <= 10)
+
+  ids <- rownames(top)
+  
+  id1 <- dbl[rownames(dbl) == n, "source1"]
+  
+  id2 <- dbl[rownames(dbl) == n, "source2"]
+  
+  sel <- sce$cluster %in% c(n, id1, id2)
+
+  cat("### Cluster", n, "\n")
+
+  plotHeatmap(sce[, sel], features = ids, x = "cluster", colour_columns_by = "cluster", center = TRUE, zlim = c(-1, 1), symmetric = TRUE, cluster_rows = ifelse(length(ids) >= 2, TRUE, FALSE), show_colnames = FALSE)
+
+  cat("\n\n")
+
+}
+```
+
+## By simulation {.tabset}
+
+Identify potential doublet cells based on simulations of putative doublet expression profiles:
+
+```{r}
+set.seed(1701)
+
+sel <- rowData(sce)$selected
+
+num <- ncol(reducedDim(sce, 'PCA'))
+
+dbl <- doubletCells(sce, subset.row = sel, d = num)
+
+sce$doublet_score <- dbl
+```
+
+Plot reduced dimensions coloured by doublet score:
+
+### PCA
+
+```{r}
+plotPCA(sce, colour_by = "doublet_score")
+```
+
+### TSNE
+
+```{r}
+plotTSNE(sce, colour_by = "doublet_score")
+```
+
+### UMAP
+
+```{r}
+plotUMAP(sce, colour_by = "doublet_score")
+```
+
+## Summary
+
+### Output
+
+Write experiment data:
+
+```{r}
+write_rds(sce, here("data/doublet.Rds"))
+```
+
+### Session
+
+Print session information:
+
+```{r}
+session_info()
+```
